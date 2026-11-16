@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace G\Container\Resolvers;
+namespace G\Container\Resolver;
 
-use G\Container\Exceptions\{ContainerException, NotFoundException};
+use G\Container\Exception\{ContainerException, NotFoundException};
 
 interface ResolverInterface
 {

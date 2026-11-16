@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace G\Container;
 
 use Psr\Container\ContainerInterface;
-use G\Container\Exceptions\NotFoundException;
-use G\Container\Resolvers\{Resolver, ResolverInterface};
+use G\Container\Exception\NotFoundException;
+use G\Container\Resolver\{Resolver, ResolverInterface};
 
 /**
  * PSR-11 container.
