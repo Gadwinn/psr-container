@@ -7,6 +7,7 @@ namespace G\Container;
 use Psr\Container\ContainerInterface;
 use G\Container\Exception\NotFoundException;
 use G\Container\Resolver\{Resolver, ResolverInterface};
+use ReflectionClass;
 
 /**
  * PSR-11 container.
@@ -14,6 +15,10 @@ use G\Container\Resolver\{Resolver, ResolverInterface};
  * An entry is either a plain value, returned as is, or something the resolver can build
  * (a factory or a class name), built on first access and then shared, unless the entry
  * was flagged with isFactory().
+ *
+ * A class which was never defined is built on first access when it is instantiable
+ * (autowiring) and then shared. The container itself is available under
+ * Psr\Container\ContainerInterface and its own class names, unless they were defined.
  */
 class Container implements ContainerInterface
 {
@@ -42,7 +47,22 @@ class Container implements ContainerInterface
             return $this->resolved[$id];
         }
 
-        if (!$this->has($id)) {
+        if (!array_key_exists($id, $this->entries)) {
+            if ($this->isSelf($id)) {
+                return $this;
+            }
+
+            if ($this->isAutowirable($id)) {
+                return $this->resolved[$id] = $this->resolver->resolve($id);
+            }
+
+            if (interface_exists($id) || trait_exists($id) || enum_exists($id) || class_exists($id)) {
+                throw new NotFoundException(
+                    "No entry found for '$id': it cannot be instantiated, define the implementation"
+                        . " to use with set('$id', ...)"
+                );
+            }
+
             throw new NotFoundException("No entry found for '$id'");
         }
 
@@ -61,7 +81,20 @@ class Container implements ContainerInterface
 
     public function has(string $id): bool
     {
-        return isset($this->entries[$id]);
+        return $this->isDefined($id) || $this->isAutowirable($id);
+    }
+
+    /**
+     * Tell whether an identifier was defined with set() or designates the container itself,
+     * as opposed to a class that would only be autowired.
+     *
+     * @param string $id The identifier of the entry.
+     *
+     * @return bool
+     */
+    public function isDefined(string $id): bool
+    {
+        return array_key_exists($id, $this->entries) || $this->isSelf($id);
     }
 
     /**
@@ -107,5 +140,21 @@ class Container implements ContainerInterface
             unset($this->resolved[$id]);
         }
         return $this;
+    }
+
+    /**
+     * Tell whether an identifier designates the container itself.
+     */
+    protected function isSelf(string $id): bool
+    {
+        return $id === ContainerInterface::class || $id === self::class || $id === static::class;
+    }
+
+    /**
+     * Tell whether an undefined identifier is the name of an instantiable class.
+     */
+    protected function isAutowirable(string $id): bool
+    {
+        return class_exists($id) && (new ReflectionClass($id))->isInstantiable();
     }
 }
