@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace G\Container\Tests\Resolvers;
+namespace G\Container\Tests\Resolver;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use G\Container\Container;
-use G\Container\Exceptions\{ContainerException, NotFoundException};
-use G\Container\Resolvers\Resolver;
+use G\Container\Exception\{ContainerException, NotFoundException};
+use G\Container\Resolver\Resolver;
 use G\Container\Tests\Fixtures\{
     AbstractService,
     Car,

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace G\Container\Resolvers;
+namespace G\Container\Resolver;
 
 use Closure;
-use G\Container\Exceptions\{ContainerException, NotFoundException};
+use G\Container\Exception\{ContainerException, NotFoundException};
 use Psr\Container\{ContainerInterface, NotFoundExceptionInterface};
 use ReflectionClass;
 use ReflectionMethod;

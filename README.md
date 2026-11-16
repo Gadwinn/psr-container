@@ -91,8 +91,8 @@ $container->set(Mailer::class, fn () => new Mailer($container->get(LoggerInterfa
 
 | Situation | Exception |
 |---|---|
-| Unknown identifier | `G\Container\Exceptions\NotFoundException` (`Psr\Container\NotFoundExceptionInterface`) |
-| Entry that cannot be built: unresolvable parameter, missing dependency, class not instantiable, circular dependency | `G\Container\Exceptions\ContainerException` (`Psr\Container\ContainerExceptionInterface`) |
+| Unknown identifier | `G\Container\Exception\NotFoundException` (`Psr\Container\NotFoundExceptionInterface`) |
+| Entry that cannot be built: unresolvable parameter, missing dependency, class not instantiable, circular dependency | `G\Container\Exception\ContainerException` (`Psr\Container\ContainerExceptionInterface`) |
 
 As required by PSR-11, a missing *dependency* of an existing entry is reported as a
 `ContainerException`, not as a `NotFoundException`. Exceptions thrown by your own factories
@@ -101,7 +101,7 @@ and constructors are not wrapped.
 ### Custom resolver
 
 The way entries are built can be replaced by passing your own
-`G\Container\Resolvers\ResolverInterface` to the constructor:
+`G\Container\Resolver\ResolverInterface` to the constructor:
 
 ```php
 $container = new Container($myResolver);
