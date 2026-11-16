@@ -19,7 +19,8 @@ use ReflectionParameter;
  * Turns a container entry into a value:
  *  - a factory (a Closure or an array callable such as [$object, 'method']) is called, its
  *    parameters being resolved like constructor parameters (a parameter typed with
- *    Psr\Container\ContainerInterface receives the container);
+ *    Psr\Container\ContainerInterface receives the container, and so does an untyped
+ *    first parameter);
  *  - a class name is instantiated, its constructor dependencies being read from the container.
  *
  * Anything else is a plain value and is not resolvable. In particular, a string is only
@@ -90,8 +91,18 @@ class Resolver implements ResolverInterface
     protected function resolveCallable(callable $callable, array $parameters = []): mixed
     {
         $function = Closure::fromCallable($callable);
+        $reflection = new ReflectionFunction($function);
 
-        return $function(...$this->resolveParameters(new ReflectionFunction($function), $parameters));
+        // Usual convention of the PHP containers: fn ($c) => ... receives the container
+        $first = $reflection->getParameters()[0] ?? null;
+        if (
+            $first !== null && !$first->hasType() && !$first->isVariadic()
+            && !array_key_exists(0, $parameters) && !array_key_exists($first->getName(), $parameters)
+        ) {
+            $parameters[0] = $this->container;
+        }
+
+        return $function(...$this->resolveParameters($reflection, $parameters));
     }
 
     /**

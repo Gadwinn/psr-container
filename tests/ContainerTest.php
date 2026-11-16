@@ -185,6 +185,26 @@ final class ContainerTest extends TestCase
         $this->assertSame($container->get(Engine::class), $engine);
     }
 
+    public function testUntypedFirstParameterOfAFactoryReceivesTheContainer(): void
+    {
+        $container = new Container();
+        $container->set('service', fn ($c, Engine $engine): array => [$c, $engine]);
+
+        [$c, $engine] = $container->get('service');
+
+        $this->assertSame($container, $c);
+        $this->assertSame($container->get(Engine::class), $engine);
+    }
+
+    public function testUntypedParameterAfterTheFirstIsNotResolved(): void
+    {
+        $container = new Container();
+        $container->set('service', fn (Engine $engine, $other): array => [$engine, $other]);
+
+        $this->expectException(ContainerException::class);
+        $container->get('service');
+    }
+
     public function testArrayCallableFactoryReceivesTheContainer(): void
     {
         $factory = new class {
