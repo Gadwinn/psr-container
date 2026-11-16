@@ -121,6 +121,9 @@ $container->set(
 $container->set(Report::class, fn (Mailer $mailer, Clock $clock) => new Report($mailer, $clock->now()));
 ```
 
+As in most PHP containers, an untyped first parameter receives the container too:
+`fn ($c) => new Mailer($c->get(LoggerInterface::class), 5)`.
+
 When a dependency cannot be built, the message of the `ContainerException` keeps the chain of
 the entries being built (`Unable to resolve the dependency 'B' of the class 'A': ...`).
 
