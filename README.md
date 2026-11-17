@@ -153,3 +153,7 @@ $container = new Container($myResolver);
 composer install
 composer test-all   # security audit, code style, static analysis, unit tests, magic numbers
 ```
+
+## License
+
+MIT, see [LICENSE](LICENSE).
