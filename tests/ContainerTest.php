@@ -8,9 +8,10 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\{ContainerExceptionInterface, ContainerInterface, NotFoundExceptionInterface};
 use G\Container\Container;
-use G\Container\Exceptions\{ContainerException, NotFoundException};
-use G\Container\Resolvers\ResolverInterface;
-use G\Container\Tests\Fixtures\{Car, CircularA, CircularB, Engine, Invokable, ScalarDependency};
+use G\Container\Exception\{ContainerException, NotFoundException};
+use G\Container\Resolver\ResolverInterface;
+use G\Container\Tests\Fixtures\{AbstractService, Car, CircularA, CircularB, Dashboard, Engine, EngineInterface};
+use G\Container\Tests\Fixtures\{Fuel, Garage, Honks, Invokable, OptionalDependency, ScalarDependency};
 use RuntimeException;
 use stdClass;
 
@@ -78,14 +79,153 @@ final class ContainerTest extends TestCase
         }
     }
 
-    public function testUnregisteredClassIsNotFound(): void
+    public function testUndefinedClassIsAutowiredAndShared(): void
     {
         $container = new Container();
 
-        $this->assertFalse($container->has(Engine::class));
-        $this->expectException(NotFoundExceptionInterface::class);
+        $this->assertTrue($container->has(Car::class));
+        $this->assertFalse($container->isDefined(Car::class));
 
-        $container->get(Engine::class);
+        $car = $container->get(Car::class);
+
+        $this->assertInstanceOf(Car::class, $car);
+        $this->assertSame($car, $container->get(Car::class));
+        $this->assertSame($container->get(Engine::class), $car->engine);
+    }
+
+    public function testDefinedEntryWinsOverAutowiring(): void
+    {
+        $engine = new Engine();
+        $container = (new Container())->set(Engine::class, fn (): Engine => $engine);
+
+        $this->assertSame($engine, $container->get(Car::class)->engine);
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function notInstantiableTypes(): array
+    {
+        return [
+            'interface' => [EngineInterface::class],
+            'abstract class' => [AbstractService::class],
+            'enum' => [Fuel::class],
+            'trait' => [Honks::class],
+        ];
+    }
+
+    #[DataProvider('notInstantiableTypes')]
+    public function testUndefinedNotInstantiableTypeIsNotFound(string $id): void
+    {
+        $container = new Container();
+
+        $this->assertFalse($container->has($id));
+        $this->expectException(NotFoundExceptionInterface::class);
+        $this->expectExceptionMessage("define the implementation to use with set('$id', ...)");
+
+        $container->get($id);
+    }
+
+    public function testCircularDependencyIsDetectedThroughAutowiring(): void
+    {
+        $this->expectException(ContainerException::class);
+        $this->expectExceptionMessage('Circular dependency');
+
+        (new Container())->get(CircularA::class);
+    }
+
+    public function testAutowiringFailureKeepsTheChainOfClasses(): void
+    {
+        try {
+            (new Container())->get(Garage::class);
+            $this->fail('An exception was expected');
+        } catch (ContainerExceptionInterface $e) {
+            $this->assertNotInstanceOf(NotFoundExceptionInterface::class, $e);
+            $this->assertStringContainsString("'" . Dashboard::class . "' of the class '" . Garage::class . "'", $e->getMessage());
+            $this->assertStringContainsString('$dependency', $e->getMessage());
+            $this->assertStringContainsString("the class '" . Dashboard::class . "'", $e->getMessage());
+        }
+    }
+
+    public function testOptionalParameterKeepsItsDefaultRatherThanBeingAutowired(): void
+    {
+        $object = (new Container())->get(OptionalDependency::class);
+
+        $this->assertNull($object->engine);
+        $this->assertNull($object->other);
+    }
+
+    public function testContainerIsAvailableUnderItsInterfaceAndClass(): void
+    {
+        $container = new Container();
+
+        $this->assertTrue($container->has(ContainerInterface::class));
+        $this->assertTrue($container->isDefined(ContainerInterface::class));
+        $this->assertSame($container, $container->get(ContainerInterface::class));
+        $this->assertSame($container, $container->get(Container::class));
+    }
+
+    public function testContainerInterfaceCanBeRedefined(): void
+    {
+        $other = new Container();
+        $container = (new Container())->set(ContainerInterface::class, $other);
+
+        $this->assertSame($other, $container->get(ContainerInterface::class));
+    }
+
+    public function testFactoryReceivesTheContainerAndAutowiredServices(): void
+    {
+        $container = new Container();
+        $container->set('service', fn (ContainerInterface $c, Engine $engine, Container $self): array => [$c, $engine, $self]);
+
+        [$c, $engine, $self] = $container->get('service');
+
+        $this->assertSame($container, $c);
+        $this->assertSame($container, $self);
+        $this->assertSame($container->get(Engine::class), $engine);
+    }
+
+    public function testUntypedFirstParameterOfAFactoryReceivesTheContainer(): void
+    {
+        $container = new Container();
+        $container->set('service', fn ($c, Engine $engine): array => [$c, $engine]);
+
+        [$c, $engine] = $container->get('service');
+
+        $this->assertSame($container, $c);
+        $this->assertSame($container->get(Engine::class), $engine);
+    }
+
+    public function testUntypedParameterAfterTheFirstIsNotResolved(): void
+    {
+        $container = new Container();
+        $container->set('service', fn (Engine $engine, $other): array => [$engine, $other]);
+
+        $this->expectException(ContainerException::class);
+        $container->get('service');
+    }
+
+    public function testArrayCallableFactoryReceivesTheContainer(): void
+    {
+        $factory = new class {
+            public function create(ContainerInterface $container): Car
+            {
+                return new Car($container->get(Engine::class), 'blue');
+            }
+        };
+        $container = (new Container())->set(Car::class, [$factory, 'create']);
+
+        $this->assertSame('blue', $container->get(Car::class)->color);
+    }
+
+    public function testFactoryWithUnresolvableParameterThrowsContainerException(): void
+    {
+        $container = (new Container())->set('service', fn (string $name): string => $name);
+
+        $this->expectException(ContainerException::class);
+        $this->expectExceptionMessage('$name');
+
+        $container->get('service');
     }
 
     public function testSetNullRemovesTheEntry(): void
@@ -169,10 +309,10 @@ final class ContainerTest extends TestCase
 
     public function testMissingDependencyIsNotReportedAsNotFound(): void
     {
-        $container = (new Container())->set(Car::class, Car::class);
+        $container = (new Container())->set(Dashboard::class, Dashboard::class);
 
         try {
-            $container->get(Car::class);
+            $container->get(Dashboard::class);
             $this->fail('An exception was expected');
         } catch (ContainerExceptionInterface $e) {
             // PSR-11: the requested entry exists, so this must not be a "not found" error

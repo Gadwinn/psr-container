@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace G\Container\Exceptions;
+namespace G\Container\Exception;
 
 use Psr\Container\NotFoundExceptionInterface;
 

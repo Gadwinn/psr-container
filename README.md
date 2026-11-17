@@ -54,15 +54,45 @@ $container->set(Message::class, Message::class)->isFactory();    // new instance
 $container->isFactory(Message::class);                           // same, by identifier
 ```
 
-### Constructor autowiring
+### Autowiring
 
-When an entry is a class name, its constructor arguments are resolved in this order:
+A class which was never defined with `set()` is built on first `get()` when it is
+instantiable, then shared like any other service: there is no need to declare classes whose
+constructor the container can resolve on its own.
 
-1. a parameter whose type is a class or an interface is read from the container, when the
-   container has an entry with that name;
-2. otherwise the default value of the parameter is used, if any;
-3. otherwise `null` is used when the parameter is a nullable class or interface;
-4. otherwise a `ContainerException` is thrown.
+```php
+$container = new Container();
+
+$container->has(Mailer::class);   // true: Mailer is an instantiable class
+$container->get(Mailer::class);   // built once, then shared
+```
+
+Interfaces, abstract classes, enums and traits cannot be instantiated: `has()` returns `false`
+and `get()` throws a `NotFoundException` asking to define the implementation to use:
+
+```php
+$container->set(LoggerInterface::class, FileLogger::class);
+```
+
+The container itself is available under `Psr\Container\ContainerInterface` (and its own class
+name), unless you define that identifier yourself. `isDefined($id)` tells whether an
+identifier was defined with `set()` (or designates the container), as opposed to a class which
+would only be autowired.
+
+### Constructor and factory parameters
+
+The parameters of a constructor (class name entries, autowired classes) and of a factory
+(Closure or array callable) are resolved in this order:
+
+1. a parameter whose type is a class or an interface defined in the container receives that entry
+   (a parameter typed `ContainerInterface` therefore receives the container);
+2. otherwise the default value of the parameter is used, if any: an optional parameter is
+   never autowired;
+3. otherwise a parameter whose type is an instantiable class is autowired;
+4. otherwise `null` is used when the parameter is a nullable class or interface;
+5. otherwise a `ContainerException` is thrown, naming the parameter and the class or factory.
+
+Union and intersection types are not autowired.
 
 ```php
 final class Mailer
@@ -72,27 +102,37 @@ final class Mailer
     }
 }
 
-$container
-    ->set(LoggerInterface::class, fn () => new FileLogger('/var/log/app.log'))
-    ->set(Mailer::class, Mailer::class);
+$container->set(LoggerInterface::class, fn () => new FileLogger('/var/log/app.log'));
 
 $container->get(Mailer::class); // Mailer built with the FileLogger and 3 retries
 ```
 
-Only identifiers defined with `set()` exist: a class which was never registered is not
-built on the fly, and union or intersection types are not autowired. Use a factory for
-anything autowiring cannot guess:
+Use a factory for anything autowiring cannot guess; it receives the container, and any other
+service it asks for by type:
 
 ```php
-$container->set(Mailer::class, fn () => new Mailer($container->get(LoggerInterface::class), 5));
+use Psr\Container\ContainerInterface;
+
+$container->set(
+    Mailer::class,
+    fn (ContainerInterface $c) => new Mailer($c->get(LoggerInterface::class), 5)
+);
+
+$container->set(Report::class, fn (Mailer $mailer, Clock $clock) => new Report($mailer, $clock->now()));
 ```
+
+As in most PHP containers, an untyped first parameter receives the container too:
+`fn ($c) => new Mailer($c->get(LoggerInterface::class), 5)`.
+
+When a dependency cannot be built, the message of the `ContainerException` keeps the chain of
+the entries being built (`Unable to resolve the dependency 'B' of the class 'A': ...`).
 
 ### Errors
 
 | Situation | Exception |
 |---|---|
-| Unknown identifier | `G\Container\Exceptions\NotFoundException` (`Psr\Container\NotFoundExceptionInterface`) |
-| Entry that cannot be built: unresolvable parameter, missing dependency, class not instantiable, circular dependency | `G\Container\Exceptions\ContainerException` (`Psr\Container\ContainerExceptionInterface`) |
+| Unknown identifier, undefined interface, abstract class, enum or trait | `G\Container\Exception\NotFoundException` (`Psr\Container\NotFoundExceptionInterface`) |
+| Entry that cannot be built: unresolvable parameter, missing dependency, class not instantiable, circular dependency | `G\Container\Exception\ContainerException` (`Psr\Container\ContainerExceptionInterface`) |
 
 As required by PSR-11, a missing *dependency* of an existing entry is reported as a
 `ContainerException`, not as a `NotFoundException`. Exceptions thrown by your own factories
@@ -101,7 +141,7 @@ and constructors are not wrapped.
 ### Custom resolver
 
 The way entries are built can be replaced by passing your own
-`G\Container\Resolvers\ResolverInterface` to the constructor:
+`G\Container\Resolver\ResolverInterface` to the constructor:
 
 ```php
 $container = new Container($myResolver);
@@ -113,3 +153,7 @@ $container = new Container($myResolver);
 composer install
 composer test-all   # security audit, code style, static analysis, unit tests, magic numbers
 ```
+
+## License
+
+MIT, see [LICENSE](LICENSE).
