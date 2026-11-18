@@ -77,7 +77,9 @@ $container->set(LoggerInterface::class, FileLogger::class);
 The container itself is available under `Psr\Container\ContainerInterface` (and its own class
 name), unless you define that identifier yourself. `isDefined($id)` tells whether an
 identifier was defined with `set()` (or designates the container), as opposed to a class which
-would only be autowired.
+would only be autowired. `isResolved($id)` tells whether its shared instance has already been
+built, which lets you act on a service only when it was used (for example, reset it between
+two requests of a long-running worker without building it).
 
 ### Constructor and factory parameters
 

@@ -79,6 +79,27 @@ final class ContainerTest extends TestCase
         }
     }
 
+    public function testIsResolvedOnlyOnceTheSharedInstanceIsBuilt(): void
+    {
+        $container = new Container();
+        $container->set('engine', Engine::class);
+        $container->set('factory', Engine::class)->isFactory();
+
+        $this->assertFalse($container->isResolved('engine'));
+        $this->assertFalse($container->isResolved(Car::class));
+
+        $container->get('engine');
+        $container->get(Car::class);
+        $container->get('factory');
+
+        $this->assertTrue($container->isResolved('engine'));
+        $this->assertTrue($container->isResolved(Car::class), 'autowired and shared');
+        $this->assertFalse($container->isResolved('factory'), 'a factory is never shared');
+
+        $container->set('engine', Engine::class);
+        $this->assertFalse($container->isResolved('engine'), 'redefining forgets the instance');
+    }
+
     public function testUndefinedClassIsAutowiredAndShared(): void
     {
         $container = new Container();
