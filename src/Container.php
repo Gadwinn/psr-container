@@ -98,6 +98,21 @@ class Container implements ContainerInterface
     }
 
     /**
+     * Tell whether the shared instance of an entry has already been built by get().
+     *
+     * Always false for a factory entry (never shared) and for the container itself.
+     * Useful to act on a service only when it was used, without building it.
+     *
+     * @param string $id The identifier of the entry.
+     *
+     * @return bool
+     */
+    public function isResolved(string $id): bool
+    {
+        return array_key_exists($id, $this->resolved);
+    }
+
+    /**
      * Define an entry, replacing any previous definition of the same identifier.
      *
      * @param string $id The identifier of the entry.
